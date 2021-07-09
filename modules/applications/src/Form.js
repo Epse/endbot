@@ -87,15 +87,37 @@ class Form {
 	}
 	
 	async generateEmbed(row, channel, username) {
-		let info = generate("endtech").setTitle(`${username}'s Application`);
-		let questions = generate("endtech");
+		let info = [generate("endtech").setTitle(`${username}'s Application`)];
+		let questions = [generate("endtech")];
 		row._sheet.headerValues.forEach((question, i) => {
 			if (!row[question] || i == 0) return;
-			if (i < 9) info.addField(`__${question}__`, row[question]);
-			else questions.addField(`__${question}__`, row[question]);
+			// Fix erroring out on accumulated embed size being over 6000,
+			// but still assume that one Q+A combo will never be over 6000 characters
+			// We do take 50 characters of margin here.
+			if (i < 9) {
+				if (info[info.length - 1].length + question.length + row[question].length >= 6000 - 50 ) {
+					info.push(generate("endtech"));
+				}
+				info[info.length - 1].addField(`__${question}__`, row[question]);
+			} else {
+				if (questions[questions.length - 1].length + question.length + row[question].length >= 6000 - 50 ) {
+					questions.push(generate("endtech"));
+				}
+				questions[questions.length - 1].addField(`__${question}__`, row[question]);
+			}
 		});
-		let pinned = await channel.send(info);
+		let pinned = null;
+		for (let i = 0; i < info.length; i++) {
+			let result = await channel.send(info[0]);
+			if (i == 0) {
+				pinned = result;
+			}
+		}
+
 		await channel.send(questions);
+		for (question of questions) {
+			await channel.send(question);
+		}
 		await pinned.pin();
 		// await this.votingChannel.send(info.setDescription(`Click [here](${pinned.url}) to access the full application`));
 		return pinned.url;
